@@ -21,7 +21,7 @@ def load_asset_group(dir_path: Path) -> dict:
         data[name] = load_parquet(p)
     return data
 
-def load_add_data() -> dict:
+def load_all_data() -> dict:
     """
     Loads all asset classes into nested dictionary.
     Example: data["crypto"]["BTC"]

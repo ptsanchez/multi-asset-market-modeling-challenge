@@ -1,11 +1,11 @@
-from data_loader import load_add_data
+from data_loader import load_all_data
 from preprocessing import prepare_single_asset
 from features import build_baseline_features
 from evaluation import walk_forward_evaluation
 
 print("Loading data...")
 
-data = load_add_data()
+data = load_all_data()
 asset = data['crypto']['BTC']
 
 print("Building baseline features...")
