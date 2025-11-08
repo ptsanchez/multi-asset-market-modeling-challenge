@@ -6,16 +6,17 @@ from evaluation import walk_forward_evaluation
 print("Loading data...")
 
 data = load_add_data()
-btc = data['crypto']['BTC']
-
-btc = prepare_single_asset(btc)
-btc_features = build_baseline_features(btc)
+asset = data['crypto']['BTC']
 
 print("Building baseline features...")
 
-results = walk_forward_evaluation(btc_features)
+asset = prepare_single_asset(asset)
+asset_features = build_baseline_features(asset)
 
 print("Performing walk-forward evaluation...")
 
+results = walk_forward_evaluation(asset_features)
 
-print(results)
+for i in range(len(results['split_accuracies'])):
+    print(f'Split {i+1} Accuracy: ' + str(results['split_accuracies'][i]*100) + '%')
+print('Average Accuracy: ' + str(results['average_accuracy']*100) + '%')

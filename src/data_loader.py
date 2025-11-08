@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from config import CRYPTO_DIR, EQUITY_DIR, FX_DIR, INDEX_DIR, DATA_FREQ
+from config import CRYPTO_DIR, EQUITY_DIR, ETF_DIR, FUTURES_DIR, FX_DIR, INDEX_DIR, DATA_FREQ
 
 def load_parquet(path: Path) -> pd.DataFrame:
     """Load a parquet file into a pandas DataFrame."""
@@ -30,6 +30,8 @@ def load_add_data() -> dict:
     return {
         "crypto": load_asset_group(CRYPTO_DIR),
         "equity": load_asset_group(EQUITY_DIR),
+        "etf": load_asset_group(ETF_DIR),
+        "futures": load_asset_group(FUTURES_DIR),
         "fx": load_asset_group(FX_DIR),
         "index": load_asset_group(INDEX_DIR),
     }

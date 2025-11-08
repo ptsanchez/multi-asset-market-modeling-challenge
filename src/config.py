@@ -6,6 +6,8 @@ DATA_DIR = PROJECT_ROOT / 'project_data'
 
 CRYPTO_DIR = DATA_DIR / 'crypto'
 EQUITY_DIR = DATA_DIR / 'equity'
+ETF_DIR = DATA_DIR / 'etf'
+FUTURES_DIR = DATA_DIR / 'futures'
 FX_DIR = DATA_DIR / 'fx'
 INDEX_DIR = DATA_DIR / 'index'
 
