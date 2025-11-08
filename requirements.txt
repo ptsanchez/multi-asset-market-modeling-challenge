@@ -3,3 +3,4 @@ fastparquet
 matplotlib
 seaborn
 scikit-learn
+hmmlearn
