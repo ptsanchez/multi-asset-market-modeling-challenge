@@ -23,6 +23,11 @@ def compute_returns(df: pd.DataFrame) -> pd.DataFrame:
     df["ret"] = df["close"].pct_change()
     df["log_ret"] = np.log(df["close"] / df["close"].shift(1))
 
+    df["is_active"] = (np.abs(df["ret"]) > 1e-12).astype(int)
+
+    df["log_ret"] = df["log_ret"].replace([np.inf, -np.inf], 0).fillna(0)
+    df["ret"] = df["ret"].fillna(0)
+
     return df
 
 def prepare_single_asset(df: pd.DataFrame, freq: str = "1min") -> pd.DataFrame:

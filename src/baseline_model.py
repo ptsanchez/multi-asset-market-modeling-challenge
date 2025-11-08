@@ -18,10 +18,17 @@ class BaselineReturnPredictor:
 
         df = df.copy()
         df["target"] = (df["ret"].shift(-1) > 0).astype(int)
-        df = df.dropna()
+        
 
-        y = df["target"].values
-        X = df[[c for c in df.columns if c.startswith("return_lag_")]].values
+        df["target_active"] = (df["is_active"].shift(-1)).fillna(0).astype(int)
+
+        df = df.dropna() 
+
+        # only training/evaluating on periods where the target had a move. structural artifact present in non 24/7 assets. explained in report
+        df_active = df[df["target_active"] == 1].copy()
+
+        y = df_active["target"].values
+        X = df_active[[c for c in df.columns if c.startswith("return_lag_")]].values
         return X, y
     
     def fit(self, df: pd.DataFrame):
