@@ -80,3 +80,23 @@ Instead of trying to predict *direction*, I aimed to predict something these fea
 > While cross-asset regimes based on 1-minute data fail to predict short-term direction, they show significant power in predicting near-term volatility.
 
 This modeling target was changed from 1-minute direction to a 10-minute volatility forecast. This required creating a new baseline.
+
+### Volatility Modeling: Ablation Study
+
+The core of this investigation is a direct comparison between a baseline model and the full regime model. Both models are trained on the same volatility target, using walk-forward evaluation.
+
+| Target Asset | Model | Regime Features | Avg. Baseline Acc. | Avg. Model Acc. | **Predictive Lift** |
+| :--- | :--- | :--- | :---: | :---: | :---: |
+| `GOOG` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 69.98% | 76.36% | **+6.38%** |
+| `AMZN` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 72.66% | 79.49% | **+6.83%** |
+| `NVDA` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 61.24% | 60.91% | **-0.33%** |
+| `BTC` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 74.95% | 41.15% | **-33.80%** |
+| `BTC` | Crypto Regime | `[ADA, BTC, ETH, SOL, XRP, VIX]` | 74.95% | 87.29% | **+12.34%** |
+
+This ablation study provides the core narrative of this project. The results demonstrate key insights:
+
+1. **Generalization:** The model's success on `GOOG` is not an isolated finding. The model was able to generalize to a similar large-cap tech asset like `AMZN`.
+2. **Nuance & Specificity:** The model is not a universal "tech" predictor. Its failure to find a a predictive edge in `NVDA` is critical, showing that the market structure it captured is highly specific and does not apply to all assets in the same sector.
+3. **Proof of Specialization:**  The model's specialization is shown in `BTC`. Applying _Equity-Focused_ regimes to an unrelated asset results in major degraded performance (-33.80% lift). Irrelevant features are harmful and worse than a simple baseline.
+4. Proof of Methodology: A **+12.34%** lift on BTC using _Crypto-Focused_ regimes proves the methodology itself is sound. As such, predictive value is not found in a 'silver-bullet' model but is unlocked by correctly specializing multi-asset features to the target's unique market domain.
+
