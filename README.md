@@ -1,73 +1,58 @@
 # RWS Challenge - Multi-Asset Market Modeling Challenge 
 
-## Project Overview
+## Overview
 
-This project focuses on understanding time-varying market structure through:
+The objective of this project is to investigate relationships within a large multi-asset dataset and develop a model that demonstrates predictive value or structural insight.
+This repository contains all code for data processing, feature engineering, and modeling, as well as the final report and analysis located. 
 
-1. A Baseline Predictive Model: A simple logistic regression model attempts to predict the next-minute return direction of an asset using only the past 5 minutes of returns. This will establish a benchmark and help quantify how much (if any) predictability using strictly local lag based features.
+Report available [here](REPORT.md). 
 
-2. Multi-Asset Regime Discovery: Inspired by the challenge guidelines, the ultimate goal of the project is to detect latent market regimes using features derived from multiple asset classes (equities, FX, crypto, and volatility indices). These regimes will then be evaluated to determine whether they offer predictive power or structural insight.
+The project's core logic is containerized in a modular structure, with main.py serving as the primary entry point for running experiments.
 
-## Baseline Model and Interpretation:
+## Environment Setup
 
-To keep things simple and features limited, the baseline model predicts whether an asset's next one-minute return will be positive or negative using only the previous five minutes of returns. To assess whether simple autoregressive structure exists across different markets, the baseline model was run on several assets over 5 splits respectively:
+To replicate the environment in order to run the code:
 
-| Asset                         | Average Accuracy |
-| ----------------------------- | ---------------- |
-| **AMZN (Amazon.com Inc)**     | **87.08%**       |
-| **DX (Dollar Index Futures)** | **80.00%**       |
-| **USDBRL (FX)**               | **83.12%**       |
-| **VIX (Volatility Index)**    | **87.36%**       |
-| **ETH (Crypto)**              | **51.46%**       |
-| **BTC (Crypto)**              | **53.76%**       |
+1. **Clone the repository**
+   ```
+   git clone https://github.com/ptsanchez/multi-asset-market-modeling-challenge.git
+   cd multi-asset-market-modeling-challenge
+   ```
+2. **Create Virtual Environment**
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On windows, use `venv\Scripts\Activate`
+   ```
+3. **Install Dependencies:**
+   ```
+   pip install -r requirements.txt
+   ```
+4. Create a project_data/ folder in the root of this project. Download the data archive (project_data.tar.gz) from [this link.](https://drive.google.com/drive/folders/1vunle__icJbzdtzjRJsF5j8CrPOsEyNI), and extract its contents into this folder. Your directory structure should look like this:
+  ```
+   /multi-asset-market-modeling-challenge
+    /notebooks
+      exploratory_data_analysis.ipynb
+    /project_data/
+        /crypto/
+        /equity/
+        /etf/
+        /futures/
+        /fx/
+        /index/
+    .gitignore
+    requirements.txt
+    README.md
+    /src/
+       (*.py files)
+  ```
 
+### How to Run Code
 
-### Vix, USDBRL, and DX achieve very high prediective accuracy (80-87%)
+You can run different modeling pipelines by specifying a mode and optional command-lind arguments. The mode is **required** and tells the script which operation to run
+- `baseline-vol`: Runs the baseline volatility prediction model. This model uses only the target asset's own lagged returns as features.
+- `regime-vol`: Runs the regime-aware volatility prediction model. This model first identifies market regimes using cross-asset features and then uses the regime as a feature for volatility prediction.
+- `regime-analysis`: Rins regime characteristic analysis without running full walk-forward evaluation.
 
-These assets exhibit strong serial dependence, meaning their minute-to-minute returns contains predictable structure. This is consistent with how markets behave:
+  #### Command line Arguments
 
-Volatility indices (VIX)
-- VIX does not trade like a typical asset.
-- It is constructed from S&P 500 options and tends to mobe smoothly due to its calculation methodology.
-- Intraday VIX changes changes often show autocorrelation, so lagged returns can explain a large portion of next-minute direction.
-- Baseline accuracy ~87%
-
-USDBRL (Brazilian Real)
-- Emerging marke currency pairs often exhibit microstructure frictions, slower reaction times, and persistent order flow.
-- This leads to predctable short-term movements.
-- Baseline accuracy ~83%, showing strong autocorrelation in short-horizon returns.
-
-DX (Dollar Index Futures)
-- The U.S. dollar index responds to macro flows and tends to trend smoothly intraday.
-- DX often shows momentum-like microstructure, especially during liquid hours.
-- The baseline model achieves ~80%, confirming meaningful short-term dependence.
-
-### ETH behaves like BTC: near-random accuracy (~52% accuracy)
-
-Crypto markets operate in a very different microstructure regime:
-- Price discovery is fast.
-- Arbitrage mechanisms across exchanges eliminate short-lived patterns.
-- One-minute returns exhibit very low autocorrelation.
-
-As expected, ETH and BTC achieved ~52%, essentially a coin flip. This reinforces the idea that strictly simple lag-based signals do not capture crypto dynamics.
-
-### Key Insight Across Assets
-
-Some markets exhibit stable short-term autocorrelation, while highly liquid crypto assets do not. This confirms that
-- Financial time series are nonstationary and behavior varies dramatically by asset class.
-- Lag-based models can appear highly predictive in some markets but fail completely in others
-- Any predictive edge detected in one regime or asset may not generalize elsewhere.
-
-The split-by-split results show that the first out-of-sample window indicates some form of apparent predictive performence, where the accuracy was meaningfully higher than just a simple coin toss. However, in all subsequence windows, performance fell back to roughly 50%.
-
-| Split              | Split Accuracy  |
-| ------------------ | ---------------- |
-| **1**              | **66.58%**       |
-| **2**              | **50.89**        |
-| **3**              | **50.35%**       |
-| **4**              | **50.50%**       |
-| **5**              | **50.48%**       |
-
-This pattern might suggest that any short-term predictability present in the early period did not persist into later market conditions. In other words, the relationship between recent returns and next-minute direction is not stable over time. This is consistent with properties of high-frequency markets, where return dynamics are highly nonstationary and any transient momentum or microstructure effects often decay quickly. 
-
-Overall so far, short-term predictability is highly asset-dependent. Some markets contain meaningful lagged structure, while others do not. This heterogeneity supports the motivation for the next phase of the project: a multi-asset volatility regime model that explains when and why predictability exists. 
+  You can modify the behavior of the models using the following arguments:
