@@ -1,4 +1,4 @@
-# RWS Challenge - Multi-Asset Market Modeling Challenge 
+# Rothenburg Wealth Strategies Multi-Asset Market Modeling Challenge 
 
 ## Overview
 
@@ -46,7 +46,7 @@ To replicate the environment in order to run the code:
        (*.py files)
   ```
 
-### How to Run Code
+### How to Run the Code
 
 You can run different modeling pipelines by specifying a mode and optional command-lind arguments. The mode is **required** and tells the script which operation to run
 - `baseline-vol`: Runs the baseline volatility prediction model. This model uses only the target asset's own lagged returns as features.
@@ -56,3 +56,38 @@ You can run different modeling pipelines by specifying a mode and optional comma
   #### Command line Arguments
 
   You can modify the behavior of the models using the following arguments:
+
+#### Model & Data Arguments
+
+  - `--target_symbol`:  The target asset symbol to model (e.g., 'BTC', 'AMZN'). Default is `BTC`.
+  - `--symbols`:  Description: A list of symbols to use for building the cross-asset regime features. Default: ADA BTC ETH SOL XRP VIX.
+  
+#### Evaluation Arguments
+- `--n_splits`: The number of splits to use for walk-forward validation. Default of 5.
+
+#### Regime Model Arguments (for regime-vol and regime-analysis modes)
+- `--model_type`: The type of unsupervised model to use for regime clustering. Choices betweeen Gaussian Mixture Model `gmm` and Hidden Markov Model `hmm`. Default is `gmm`.
+- `--n_states`: The number of latent states (regimes) for the model to find. Default is 3.
+- `--corr_window`: The rolling window (in minutes) for calculating pairwise correlations used as regime features. Default is 20.
+
+### Examples
+
+Run the baseline volatility model on Ethereum (ETH):
+```
+python main.py baseline-vol --target_symbol ETH
+```
+
+Run the regime-aware volatility model on Bitcoin (BTC): (This uses the default 3-state GMM model)
+```
+python main.py regime-vol --target_symbol BTC
+```
+
+Run a 4-state HMM regime model on BTC, using VIX and S&P 500 futures (ES) as regime features:
+```
+python main.py regime-vol --target_symbol BTC --symbols VIX ES --model_type hmm --n_states 4
+```
+
+Run an analysis
+```
+python main.py regime-analysis --target_symbol BTC --symbols VIX ES --model_type hmm --n_states 4
+```
