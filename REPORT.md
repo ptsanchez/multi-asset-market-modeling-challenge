@@ -1,102 +1,110 @@
 # Multi-Asset Market Modeling Challenge
 
-## Introduction
+### Project Summary
 
-This project aims to investigate whether short-horizon predictive structure exists in a large, multi-asset dataset covering global equities, futures, FX, commodities, sector ETFs, volatility indices, and major cryptocurrencies. The goal was to:
+This report details the investigation of a large, multi-asset dataset to find predictive value. The project followed an iterative process:
+1.  Began with a hypothesis to predict short-term **directional movement**.
+2.  Discovered this was intractable and the initial positive results were a **structural artifact**, a key pitfall.
+3.  Pivoted to a new, more robust hypothesis: forecasting near-term **volatility**.
+4.  Developed a regime-aware model using a Hidden Markov Model (HMM) that demonstrated a significant, specialized predictive lift over a baseline, validating the final hypothesis.
 
-1. Form a financially motivated hypothesis
-2. Build and test models using walk-forward evaluation
-3. Identify structural insight or a repeatable predictive edge
-4. Demonstrate reasoning, ablations, and awareness of pitfalls
+---
 
-## Initial Hypothesis - Predicting 1-Minute Direction
+## 1. Hypothesis Investigated
 
-### Motivation
+The project investigated two distinct hypotheses in sequence.
 
-The simplest question you can ask is also the most fundamental:
+### Initial (Failed) Hypothesis: 1-Minute Direction
+The initial question was:
+> "Does an asset's recent price history (5-minute lagged returns) contain enough information to predict the next 1-minute return direction?"
 
-> Does an asset's recent price history contain enough information to predict the next 1-minute return direction?
+This hypothesis was **proven to be false**. Initial high-accuracy results (~80-87%) were identified as a structural artifact from naively resampling gapping assets (like equities) versus non-gapping assets (like crypto). After correcting for this data leakage, the model's accuracy fell to ~50% (random chance), showing no predictive edge.
 
-Lagged returns are a minimal assumption and serve as a clean baseline that was opted in for this challenge.
+### Final (Successful) Hypothesis: 10-Minute Volatility
+The failure of the first approach led to a new hypothesis:
+> "While 1-minute direction is too noisy, a model that understands the current **multi-asset market regime** (e.g., 'calm' vs. 'panic') can find a predictive edge in forecasting near-term **volatility**."
 
-### Baseline Model
+This hypothesis was **validated**. The reasoning was that while *direction* is noisy, *volatility* is structural and regime-dependent. A model aware of the broader market state should outperform a simple baseline that only looks at the target asset's own history.
 
-A simple logistic regression model attempts to predict the next-minute return direction of a target asset using only the past 5 minutes of returns. This would establish a benchmark and help quantify how much (if any) predictability using strictly local lag based features.
-Running experiments on the original baseline implementation produced the following results:
+---
 
-| Asset                         | Average Accuracy |
-| ----------------------------- | ---------------- |
-| **AMZN (Amazon.com Inc)**     | **87.08%**       |
-| **DX (Dollar Index Futures)** | **80.00%**       |
-| **USDBRL (FX)**               | **83.12%**       |
-| **VIX (Volatility Index)**    | **87.36%**       |
-| **ETH (Crypto)**              | **51.46%**       |
-| **BTC (Crypto)**              | **53.76%**       |
+## 2. Modeling Approach and Reasoning
 
-At first glance, it seemed that the baseline was able to capture a predictive edge with the simple features. However, notice the degreaded performance for only particular assets. BTC and ETH crypto assets have an average accuracy across 5 splits of 50%, essentially a coin flip/random choice between the two directions. 
+### Target and Feature Engineering
+* **Initial Target:** 1-minute return direction (binary: +1 or 0).
+* **Final Target:** 10-minute volatility, defined as the 10-minute rolling standard deviation of 1-minute returns.
+* **Regime Features:** The core of the model is an **HMM/GMM** trained on cross-asset features (e.g., volatility and correlations from assets like BTC, GOOG, and VIX) to identify 3 latent market states. The *inferred regime* (State 0, 1, or 2) was then fed as a new, categorical feature into the final prediction model.
 
-This was the big indicator to discovering why this was the case: **Crypto trades 24/7.** The very high accuracy in the baseline accuracies was a **structural artifact** from the preprocessing, not true predictive power. Many non-24/7 assets have large overnight gaps.
-Using ffill() on missing rows created long flat segments where the model trivially learned that “no movement” predicted “no movement next minute.”
+### Model Architecture
+1.  **Baseline Model:** A standard logistic regression model trained to predict the volatility target using only the target asset's own recent history (lagged volatility).
+2.  **Regime-Aware Model:** The same logistic regression model, but with one additional feature: the current market regime inferred by the HMM.
 
-This led to reframing the initial hypothesis:
+This design allows for a clean ablation study, where any "lift" can be directly attributed to the regime-awareness.
 
-- The microstructure of assets (i.e., how often they trade) creates an illusion of predictability when using naive resampling.
-- To find any real predictive value, a model must first filter for perious of actual market activity.
+---
 
-To validate this diagnostic, a modified/corrected baseline model was implemented, where the averagy accuracies fell down to ~50%, back to random choice:
+## 3. Validation Method
 
-| Experiment                     | Average Accuracy |
-| ----------------------------- | ---------------- |
-| **AMZN (artifact present)**     | **~80-87%**       |
-| **BTC/ETH (no artifact)**       | **~50-53%**       |
-| **AMZN w/ corrected baseline**  | **~50%**       |
+To respect the time-ordered nature of financial data and avoid lookahead bias, a **walk-forward evaluation** was used.
 
-This shows that there is no predictive edge in 1-minute direction using strictly lagged returns. This demonstrates a key pitfall, admittedly highlighted in the challenge, where good results can arise from data construction rather than real market structure.
+The methodology is based on `sklearn.model_selection.TimeSeriesSplit`, which creates multiple expanding windows (or "splits"). 5 splits were consistently used across all experiments. For each split, the model is trained on past data and tested on unseen future data. The final accuracy is the average performance across all out-of-sample splits. This method ensures the model is always tested on data it has never seen, simulating a realistic trading environment.
 
-### Regime Model
+---
 
-After proving the simple baseline was flawed, the next logical step was to test if a more complex, multi-asset model could find a signal. The challenge document notes that market behavior is not static and that relationships may change across regimes. This inspired the next hypothesis.
+## 4. Results and Analysis
 
-**A simple lag-based model fails because it it 'regime-blind.' A model that knows the current multi-asset markey regime (e.g., calm vs panic) can find a predictive edge that the simple model misses.**
+### Initial Hypothesis Results
+As discussed, after correcting the structural artifact, the model showed no predictive power for 1-minute direction.
 
-To test this, a new HMM/GMM model was build. It was trained on cross-asset features (volatility and correlations from assets like BTC, GOOG, and VIX) to identify latent market states. 
-The inferred regime (state 0, 1, or 2) was then added as a new feature to the corrected baseline logistic regression model to see if knowing the regime provided any predictive lift. 
+| Experiment | Average Accuracy (5 Splits) | Interpretation |
+| :--- | :---: | :--- |
+| **AMZN (w/ artifact)** | ~80-87% | False positive (data leakage) |
+| **BTC/ETH (no artifact)** | ~50-53% | No signal |
+| **AMZN (corrected)** | ~50% | No signal |
 
-This new, regime-aware model was tested against the same 1-minute target. Results were a definitive null and showed no improvement over corrected 50% baseline beyond statistical noise:
+### Final Hypothesis: Volatility Ablation Study
+The table below compares the **Baseline** volatility model against the **Regime-Aware** model. The "Predictive Lift" column is the sole metric of success in regards to Regime-Aware model performance.
 
-| Experiment                         | Average Accuracy |
-| ----------------------------- | ---------------- |
-| **Regime Model (global Features)**     | **50.02%**       |
-| **Regime Model (global Features)** | **50.45%**       |
+| Target Asset | Regime Feature Set | Avg. Baseline Acc. | Avg. Regime Model Acc. | **Predictive Lift** |
+| :--- | :--- | :---: | :---: | :---: |
+| GOOG | Equity Regime | 69.98% | 76.36% | **+6.38%** |
+| AMZN | Equity Regime | 72.66% | 79.49% | **+6.83%** |
+| NVDA | Equity Regime | 61.24% | 60.91% | **-0.33%** |
+| BTC | *Equity* Regime | 74.95% | 41.15% | **-33.80%** |
+| **BTC** | **Crypto Regime** | **74.95%** | **87.29%** | **+12.34%** |
 
-Even a complex, multi-asset regime model failed to find any signal for 1-minute direction. After evidence-based iteration, it was shown that the target variable itself is likely intractable, low-signal problem. The noise simply overwhelsm any potential signal from simple lags and broader market states.
+These results provide the core insights:
+1.  **Proof of Methodology:** The model is not a fluke. It provides a **+12.34% lift** for BTC when using relevant *Crypto-Focused* features and a **+6.83% lift** for AMZN using *Equity-Focused* features.
+2.  **Proof of Specialization:** The model's power comes from specialization. Applying irrelevant *Equity* features to BTC resulted in a catastrophic **-33.80%** performance drop. This demonstrates that "more features" is not better; *relevant* features are.
+3.  **Nuance:** The "Equity" model did not generalize to NVDA, suggesting the market structure it captured is specific to certain large-cap tech assets and not the entire sector.
 
-This justified moving to a new modeling target.
+### Structural Insight: Why the BTC Model Worked
+The HMM identified three distinct crypto market regimes. The model's +12.34% lift comes from its ability to distinguish **State 2**, a rare but critical "shock" state, from a standard high-volatility state.
 
-### Pivot to New Hypothesis: Forecasting 10-Minute Volatility
+| State | Frequency | Interpretation | Avg. Volatility (std) | Mean Return | Avg. Pair Correlation |
+| :--- | :---: | :--- | :---: | :---: | :---: |
+| **1** | 72.16% | "Calm" | 0.000813 | +0.000005 | 0.28 |
+| **0** | 24.41% | "Correlated Vol" | 0.001403 | -0.000012 | 0.27 |
+| **2** | 3.43% | "Crypto-Specific Shock" | 0.002952 | +0.000020 | **0.12** |
 
-Instead of trying to predict *direction*, I aimed to predict something these features could actually measure: **volatility.** 
+The baseline model can likely distinguish "Calm" (State 1) from "Correlated Vol" (State 0). The regime model's edge comes from identifying **State 2**: an explosive, high-volatility event where correlations simultaneously break down. This is a non-obvious, multi-asset structure that a simple baseline cannot see, and showcases the power of its possible predictive power.
 
-> While cross-asset regimes based on 1-minute data fail to predict short-term direction, they show significant power in predicting near-term volatility.
+---
 
-This modeling target was changed from 1-minute direction to a 10-minute volatility forecast. This required creating a new baseline.
+## 5. Assessment and Next Steps
 
-### Volatility Modeling: Ablation Study
+### What Worked
+* **The iterative process:** Starting with a simple hypothesis allowed for the crucial discovery of the 24/7 trading artifact. This failure was essential for motivating the pivot.
+* **The regime-aware methodology:** The core idea that multi-asset regimes provide predictive power was validated.
+* **Feature specialization:** The ablation study proved that predictive value is unlocked by correctly specializing multi-asset features to the target's unique market domain (crypto-features-for-crypto).
 
-The core of this investigation is a direct comparison between a baseline model and the full regime model. Both models are trained on the same volatility target, using walk-forward evaluation.
+### What Did Not Work
+* **1-Minute Directional Forecasting:** This target is likely intractable (pure noise) with the chosen features. The initial positive results were a clear example of a "pitfall" from data construction, not a real signal.
+* **Universal Models:** The "Equity Regime" did not apply to all tech stocks (failing on NVDA), and it was actively harmful when applied to BTC. This confirms a "one-size-fits-all" model is ineffective.
 
-| Target Asset | Model | Regime Features | Avg. Baseline Acc. | Avg. Model Acc. | **Predictive Lift** |
-| :--- | :--- | :--- | :---: | :---: | :---: |
-| `GOOG` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 69.98% | 76.36% | **+6.38%** |
-| `AMZN` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 72.66% | 79.49% | **+6.83%** |
-| `NVDA` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 61.24% | 60.91% | **-0.33%** |
-| `BTC` | Equity Regime | `[GOOG, AMZN, NVDA, VIX, VXN]` | 74.95% | 41.15% | **-33.80%** |
-| `BTC` | Crypto Regime | `[ADA, BTC, ETH, SOL, XRP, VIX]` | 74.95% | 87.29% | **+12.34%** |
+### Next Steps with Additional Time
 
-This ablation study provides the core narrative of this project. The results demonstrate key insights:
+Due to school/classes, I was not able to spend as much time as I would have liked to this really fun challenge, so a couple of "future work" possibilities include:
 
-1. **Generalization:** The model's success on `GOOG` is not an isolated finding. The model was able to generalize to a similar large-cap tech asset like `AMZN`.
-2. **Nuance & Specificity:** The model is not a universal "tech" predictor. Its failure to find a a predictive edge in `NVDA` is critical, showing that the market structure it captured is highly specific and does not apply to all assets in the same sector.
-3. **Proof of Specialization:**  The model's specialization is shown in `BTC`. Applying _Equity-Focused_ regimes to an unrelated asset results in major degraded performance (-33.80% lift). Irrelevant features are harmful and worse than a simple baseline.
-4. Proof of Methodology: A **+12.34%** lift on BTC using _Crypto-Focused_ regimes proves the methodology itself is sound. As such, predictive value is not found in a 'silver-bullet' model but is unlocked by correctly specializing multi-asset features to the target's unique market domain.
-
+1.  **Expand Regime Ablations:** Test the validated "Crypto Regime" model on the other crypto assets (ETH, SOL, etc.) to see if the +12.34% lift on BTC generalizes across the asset class.
+3.  **Model Regime Transitions:** Instead of just *using* the current regime, build a model to *forecast the probability of a regime transition* (e.g., moving from "Calm" to "Crypto-Specific Shock"). This could provide a more powerful, forward-looking signal.
