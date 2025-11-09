@@ -6,7 +6,7 @@ print("Loading Data...")
 
 data = load_all_data()
 
-selected_symbols = ["BTC", "ETH", "GOOG", "EURUSD", "VIX"]
+selected_symbols = ["ADA", "BTC", "ETH", "SOL", "XRP", "VIX"]
 
 print("Preprocessing selected symbols...")
 
@@ -19,9 +19,10 @@ for cls in ["crypto", "equity", "fx", "index"]:
             # skip if preprocess fails or symbol missing
             continue
 
-target_symbol = "AMZN"
-target_df = asset_dfs["AMZN"]
+target_symbol = "BTC"
+target_df = asset_dfs[target_symbol]
 
+print(f"Targeting asset: {target_symbol}") 
 print("Peforming walk forward evaluation...")
 
 results = walk_forward_regime_pipeline(

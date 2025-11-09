@@ -24,70 +24,90 @@ def walk_forward_regime_pipeline(asset_dfs: dict,
                                  n_states = 3,
                                  corr_window = 20):
     
-    # Build global cross-asset features. Recomputes per window
 
     feats_all = build_cross_asset_features(asset_dfs, selected_symbols=selected_symbols, corr_window=corr_window)
     feats_all = feats_all.reindex(target_df.index).dropna()
 
     target_df = target_df.loc[feats_all.index]
 
+    if len(target_df) < n_splits * 50:
+        raise ValueError(f"Insufficient data after feature alignment: {len(target_df)} observations")
+
     tscv = TimeSeriesSplit(n_splits=n_splits)
     splits = list(tscv.split(target_df))
 
     split_results = []
-    model = LogisticRegression(max_iter=1000)
+
+    first_train_idx, _ = splits[0]
+    first_train_df = target_df.iloc[first_train_idx]
+    
+    fwd_vol = first_train_df['ret'].rolling(10).std().shift(-10)
+    
+    # "High vol" defined as the top 25% 
+    VOL_THRESHOLD = fwd_vol.quantile(0.75)
+    print(f"Using a high-volatility threshold of: {VOL_THRESHOLD}")
+
 
     for fold, (train_idx, test_idx) in enumerate(splits):
-        train_idx = np.array(train_idx)
-        test_idx = np.array(test_idx)
-        
-        
         train_df = target_df.iloc[train_idx]
         test_df = target_df.iloc[test_idx]
+        
+        train_index = train_df.index
+        test_index = test_df.index
 
-        # Build features using only data up to end of trin window. 
-        # For regime features, build features from asset_dfs, then slice to train/test
-        #feats_all = build_cross_asset_features(asset_dfs, selected_symbols=selected_symbols, corr_window=corr_window)
-        #feats_all = feats_all.reindex(target_df.index).dropna()
+        train_features = feats_all.loc[train_index]
+        test_features = feats_all.loc[test_index]
 
+        if len(train_features) == 0:
+            print(f"Fold {fold}: No training features available, skipping..")
+            continue
 
-        # Ensure train indices exist in feats_all after reindexing and dropping
-        #train_index = train_df.index.intersection(feats_all.index)
-        #test_index = test_df.index.intersection(feats_all.index)
-        train_index = target_df.iloc[train_idx].index
-        test_index = target_df.iloc[test_idx].index
-
-
-        # fit regime model on training set
         rm = RegimeModel(model_type=regime_model_type, n_states=n_states)
-        rm.fit(feats_all.loc[train_index])
+        rm.fit(train_features)
 
-        # infer regime labels for both train and test
-        train_states = rm.infer_states(feats_all.loc[train_index])
-        test_states = rm.infer_states(feats_all.loc[test_index])
-
+        train_states = rm.infer_states(train_features)
+        test_states = rm.infer_states(test_features)
+        
         train_regime_series = pd.Series(train_states, index=train_index)
         test_regime_series = pd.Series(test_states, index=test_index)
 
         train_with_regime = add_regime_to_target_df(train_df, train_regime_series, prefix="regime")
         test_with_regime = add_regime_to_target_df(test_df, test_regime_series, prefix="regime")
         
-        def build_supervised_features(df):
+        def build_supervised_features(df, vol_thresh):
             df2 = df.copy()
             # lagged returns
             for i in range(1, 6):
                 df2[f"lag_ret_{i}"] = df2["ret"].shift(i)
+            
+            # Calculate 10-minute rolling volatility, then shift back 10 steps
+            df2["fwd_vol_10"] = df2["ret"].rolling(10).std().shift(-10)
+
+            y_all = (df2["fwd_vol_10"] > vol_thresh).astype(int)
+
             df2 = df2.dropna()
+            
+            if df2.empty:
+                return pd.DataFrame(), pd.Series(dtype=int)
+
+            # Build features
             X_base = df2[[c for c in df2.columns if c.startswith("lag_ret_")]].copy()
-            # one-hot encode regime
             X_reg = pd.get_dummies(df2["regime"].astype(int).astype(str), prefix="reg")
             X = pd.concat([X_base, X_reg], axis=1)
-            y = (df2["ret"].shift(-1) > 0).astype(int).iloc[len(df2)-len(X):]
+
+            y = y_all.reindex(X.index)
+            
+            # Note that 0-return is a valid (low-vol), so don't need y_active filter this target.
             return X, y
 
-        X_train, y_train = build_supervised_features(train_with_regime)
-        X_test, y_test = build_supervised_features(test_with_regime)
+        X_train, y_train = build_supervised_features(train_with_regime, VOL_THRESHOLD)
+        X_test, y_test = build_supervised_features(test_with_regime, VOL_THRESHOLD)
 
+        if X_test.empty or y_test.empty or X_train.empty or y_train.empty:
+            print(f"Fold {fold}: No active test/train samples after building features, skipping")
+            split_results.append(np.nan)
+            continue
+            
         model = LogisticRegression(max_iter=1000)
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
